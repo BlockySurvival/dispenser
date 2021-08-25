@@ -254,11 +254,10 @@ local actions = {
 	rightclick_entity = {
 		player_required = true,
 		entity_required = true,
-		check = function (_, entity)
+		check = function (_, player, entity)
 			return entity and entity.on_rightclick
 		end,
 		act = function (item_stack, dispenser_data, player, _, entity)
-			if not player then return item_stack, "player not logged in" end
 			entity:on_rightclick(player)
 			return
 		end
@@ -266,11 +265,10 @@ local actions = {
 	punch_entity = {
 		player_required = true,
 		entity_required = true,
-		check = function (_, entity)
+		check = function (_, player, entity)
 			return entity and entity.on_punch
 		end,
 		act = function (item_stack, dispenser_data, player, _, entity)
-			if not player then return item_stack, "player not logged in" end
 			entity:on_punch(player)--puncher, time_from_last_punch, tool_capabilities, dir
 			return
 		end
@@ -278,11 +276,10 @@ local actions = {
 	rightclick_node = {
 		player_required = true,
 		node_required = true,
-		check = function (_, node)
+		check = function (_, player, node)
 			return node and minetest.registered_nodes[node.name].on_rightclick
 		end,
 		act = function (item_stack, dispenser_data, player, node)
-			if not player then return item_stack, "player not logged in" end
 			local result = minetest.registered_nodes[node.name].on_rightclick(dispenser_data.front, node, player, item_stack, {
 				type="node",
 				under=dispenser_data.front,
@@ -294,11 +291,10 @@ local actions = {
 	punch_node = {
 		player_required = true,
 		node_required = true,
-		check = function (_, node)
+		check = function (_, player, node)
 			return node and node.name ~= "air" and minetest.registered_nodes[node.name].on_punch
 		end,
 		act = function (item_stack, dispenser_data, player, node)
-			if not player then return item_stack, "player not logged in" end
 			minetest.registered_nodes[node.name].on_punch(dispenser_data.front, node, player, {
 				type="node",
 				under=dispenser_data.front,
@@ -315,7 +311,6 @@ local actions = {
 			return def and def.on_use
 		end,
 		act = function (item_stack, dispenser_data, player)
-			if not player then return item_stack, "player not logged in" end
 			local item_name = item_stack:get_name()
 			local result = minetest.registered_items[item_name].on_use(item_stack, player, {
 				type="node",
@@ -333,7 +328,6 @@ local actions = {
 			return def and def.on_place
 		end,
 		act = function (item_stack, dispenser_data, player)
-			if not player then return item_stack, "player not logged in" end
 			local item_name = item_stack:get_name()
 			local result = minetest.registered_items[item_name].on_place(item_stack, player, {
 				type="node",
@@ -394,13 +388,16 @@ local function action_config(action_list)
 		entity_required = entity_required,
 		node_required = node_required,
 		action = function (item_stack, dispenser_data, player, node, entity)
+			if #action_list == 0 then
+				return item_stack, "no action configured"
+			end
 			for _,action_name in ipairs(action_list) do
-				local result, reason, failure = dispenser.actions["attempt_"..action_name](item_stack, dispenser_data, player, node, entity)
-				if not failure then
+				local result, reason, continue = dispenser.actions["attempt_"..action_name](item_stack, dispenser_data, player, node, entity)
+				if not continue then
 					return result, reason
 				end
 			end
-			return item_stack, "no action configured"
+			return item_stack
 		end
 	}
 	return cached_action_configs[action_ref]
@@ -529,6 +526,10 @@ for action_name, action in pairs(actions) do
 
 	dispenser.actions["attempt_"..action_name] = function (item_stack, dispenser_data, player, node, entity)
 		local things = {}
+		if action.player_required then
+			if not player then return item_stack, "player not logged in", false end
+			table.insert(things, player)
+		end
 		if action.node_required then
 			if not node then return nil, nil, true end
 			table.insert(things, node)
