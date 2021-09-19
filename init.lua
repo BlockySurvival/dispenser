@@ -186,7 +186,9 @@ local player_overrides = {
 }
 
 local function fake_player(player, overrides)
-	local fake = {}
+	local fake = {
+		is_fake_player=true
+	}
 	setmetatable(fake, {
 		__index = function(mytable, key)
 			local override = overrides(key)
