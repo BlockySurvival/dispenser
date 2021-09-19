@@ -121,11 +121,32 @@ end
 
 -- Creating a fake player to perform actions for us
 local player_overrides = {
-	default = function (wield_stack, dispenser_data)
+	default = function (original_player, wield_stack, dispenser_data)
+		local node_meta = dispenser_data.meta
+
+		local fake_meta = {}
+		setmetatable(fake_meta, {
+			__index = function(mytable, key)
+				if key:sub(1,4) == "set_" then
+					return function () end
+				end
+				if key == "from_table" then
+					return function () end
+				end
+				local meta = original_player:get_meta()
+				local v = meta[key]
+				if type(v) == "function" then
+					return function (metatable, ...)
+						return v(meta, ...)
+					end
+				end
+				return v
+			end
+		})
 		return function (key)
 			if key == "set_wielded_item" then
 				return function (player, new_stack)
-					dispenser_data.meta:get_inventory():set_stack("main", dispenser_data.index, new_stack)
+					node_meta:get_inventory():set_stack("main", dispenser_data.index, new_stack)
 				end
 			end
 			if key:sub(1,4) == "set_" then
@@ -148,7 +169,16 @@ local player_overrides = {
 			end
 			if key == "get_inventory" then
 				return function ()
-					return dispenser_data.meta:get_inventory()
+					return node_meta:get_inventory()
+				end
+			end
+			if key == "hud_change" then
+				return function ()
+				end
+			end
+			if key == "get_meta" then
+				return function ()
+					return fake_meta
 				end
 			end
 		end
@@ -166,8 +196,8 @@ local function fake_player(player, overrides)
 			-- Default behaviour for everything else
 			local v = player[key]
 			if type(v) == "function" then
-				return function (...)
-					return player[key](player, ...)
+				return function (playertable, ...)
+					return v(player, ...)
 				end
 			end
 			return v
@@ -516,7 +546,7 @@ function dispenser.actions.fake_player(item_stack, dispenser_data)
 
 	local item_name = item_stack:get_name()
 	local overrides = player_overrides[item_name] or player_overrides.default
-	return fake_player(player, overrides(item_stack, dispenser_data, player_overrides.default))
+	return fake_player(player, overrides(player, item_stack, dispenser_data, player_overrides.default))
 end
 
 -- Generate a set of utility functions for each action
