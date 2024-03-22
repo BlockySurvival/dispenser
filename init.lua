@@ -672,7 +672,7 @@ local function dispensing(pos, meta)
 	end
 
 	-- Get all choices of item stacks in inventory
-	local list = inv:get_list("main")
+	local list = inv:get_list("main") or {}
 	local indexes = {}
 	for i, stack in pairs(list) do
 		if i ~= 10 and not stack:is_empty() then
